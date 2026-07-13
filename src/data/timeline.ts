@@ -1,0 +1,133 @@
+import type { Milestone } from "@/data/types";
+
+/**
+ * Sustainability journey — full record set (content-model §11).
+ * Homepage teaser renders `featured` items; /timeline renders all.
+ */
+export const MILESTONES: Milestone[] = [
+  {
+    id: "divestiture",
+    when: "Jan 2022",
+    order: 1,
+    title: "The journey begins",
+    description: "Divestiture from Hinduja Global Solutions; ESG becomes a founding priority.",
+    era: "Foundation",
+    featured: true,
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "diagnostic",
+    when: "May 2022",
+    order: 2,
+    title: "Sustainability diagnostic",
+    description: "Big 4 diagnostic study defines the ESG readiness baseline and action plan.",
+    era: "Foundation",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "councils",
+    when: "Aug–Nov 2022",
+    order: 3,
+    title: "Governance foundations",
+    description:
+      "Sustainability, CSR and DE&I Councils established; Supplier Code of Conduct rolled out; first CDP survey.",
+    era: "Foundation",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "materiality",
+    when: "Jan 2023",
+    order: 4,
+    title: "Materiality assessment",
+    description: "17 material topics identified; governance documentation published.",
+    era: "Baselining",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "baseline",
+    when: "Feb 2023",
+    order: 5,
+    title: "Emissions baselined",
+    description: "Scope 1, 2 and 3 baselining completed and reported.",
+    era: "Baselining",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "iso45001",
+    when: "Nov 2023",
+    order: 6,
+    title: "ISO 45001:2018 achieved",
+    description: "Occupational health & safety management system certified.",
+    era: "Baselining",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "sbti-letter",
+    when: "Dec 2023",
+    order: 7,
+    title: "SBTi commitment signed",
+    description: "Commitment letter submitted; renewable share reaches 26% via EACs.",
+    era: "Baselining",
+    featured: true,
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "cdp-b",
+    when: "Q1 2024",
+    order: 8,
+    title: "CDP score D → B",
+    description: "Two-band improvement in climate disclosure rating.",
+    era: "Baselining",
+    source: "SR FY2024, p.7",
+  },
+  {
+    id: "inaugural-report",
+    when: "Jun 2024",
+    order: 9,
+    title: "Inaugural report published",
+    description: "First sustainability report released; incorporated as a public limited company.",
+    era: "Validation",
+    source: "SR FY2024, p.6",
+  },
+  {
+    id: "listing",
+    when: "FY2024–25",
+    order: 10,
+    title: "NSE & BSE listing",
+    description: "Public listing milestone; 38 new clients including the BroadPath acquisition.",
+    era: "Validation",
+    featured: true,
+    source: "SR FY2024–25, p.15",
+  },
+  {
+    id: "sbti-validated",
+    when: "FY2024–25",
+    order: 11,
+    title: "SBTi targets validated",
+    description:
+      "Near-term targets approved; FY25 performance already beyond target on both scopes.",
+    era: "Validation",
+    source: "SR FY2024–25, p.55",
+  },
+  {
+    id: "assured",
+    when: "FY2024–25",
+    order: 12,
+    title: "DNV limited assurance",
+    description: "Second report externally assured under ISAE 3000 (Revised).",
+    era: "Validation",
+    source: "SR FY2024–25, p.7",
+  },
+  {
+    id: "targets-2034",
+    when: "FY2034",
+    order: 13,
+    title: "Where we're headed",
+    description: "−54.6% Scope 1 & 2 · −32.5% Scope 3 emissions vs our FY2024 baseline.",
+    era: "Ambition",
+    featured: true,
+    source: "SR FY2024–25, p.55",
+  },
+];
+
+export const FEATURED_MILESTONES = MILESTONES.filter((m) => m.featured);

@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Global base styles — Sagility ESG.
+ * Tokens live in tailwind.config.ts; this file only sets document defaults
+ * and the accessibility affordances that must exist site-wide.
+ */
+@layer base {
+  html {
+    @apply scroll-smooth;
+    /* Offset in-page anchor jumps (#board, #awards) so targets clear the
+       fixed header (88px at rest / 64px scrolled) instead of hiding under it. */
+    scroll-padding-top: 6rem;
+  }
+
+  body {
+    @apply bg-white font-sans text-body text-ink antialiased;
+  }
+
+  /**
+   * Focus visibility — WCAG 2.4.7 + 1.4.11 (non-text contrast ≥ 3:1).
+   * Two-part indicator that stays visible on BOTH light and dark surfaces:
+   *  • mint outline — the always-rendered ring (outlines are never clipped by
+   *    overflow-hidden ancestors like the teal heroes); ~4.5:1 on deep teal.
+   *  • deep-teal halo — box-shadow that supplies ≥3:1 contrast on light
+   *    surfaces, where mint alone would fall short.
+   */
+  :focus-visible {
+    outline: 2px solid #00cba1;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(7, 73, 84, 0.7);
+  }
+
+  ::selection {
+    @apply bg-brand-mintTint text-ink-strong;
+  }
+
+  /* Reduced motion: kill smooth scroll; component motion handled by MotionConfig. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@layer components {
+  /* Skip link — visually hidden until focused (WCAG 2.4.1). */
+  .skip-link {
+    @apply absolute left-4 top-4 z-[100] -translate-y-24 rounded-btn bg-brand-teal px-4 py-2
+      text-body-s font-medium text-white transition-transform focus-visible:translate-y-0;
+  }
+}
