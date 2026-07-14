@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ScrollProgressBar } from "@/components/layout/ScrollProgressBar";
+import { Copilot } from "@/components/copilot/Copilot";
 import { ROUTE_TITLES } from "@/data/nav";
 import { SITE_NAME } from "@/lib/constants";
 import { pageTransition } from "@/lib/motion";
@@ -43,6 +44,7 @@ export function PageShell() {
         </motion.main>
       </AnimatePresence>
       <Footer />
+      <Copilot />
     </div>
   );
 }

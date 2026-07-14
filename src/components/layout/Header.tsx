@@ -9,6 +9,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { useScrolled } from "@/hooks/useScrolled";
 import { panelPop } from "@/lib/motion";
 import { cn } from "@/lib/cn";
+import logoUrl from "@/assets/sagility-logo.svg";
 
 /**
  * Header — blueprint §4 / design-system §6.3.
@@ -44,16 +45,17 @@ export function Header() {
             scrolled ? "h-16" : "h-16 lg:h-[5.5rem]",
           )}
         >
-          {/* Logo lockup — official SVG lands at Phase 5 asset pass (R2). */}
+          {/* Official Sagility logo (SVG) + ESG Report descriptor. */}
           <Link
             to="/"
-            className={cn(
-              "flex items-baseline gap-2 font-display text-h4 font-semibold transition-colors",
-              onDark ? "text-white" : "text-brand-teal",
-            )}
+            className="flex items-center gap-2 transition-colors"
             aria-label="Sagility ESG Report — home"
           >
-            Sagility
+            <img
+              src={logoUrl}
+              alt="Sagility"
+              className="h-8 w-auto"
+            />
             <span
               className={cn(
                 "text-body-s font-sans font-medium uppercase tracking-[0.12em]",

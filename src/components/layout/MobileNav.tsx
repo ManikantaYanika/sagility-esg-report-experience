@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
@@ -7,6 +8,7 @@ import { Accordion } from "@/components/primitives/Accordion";
 import { Button } from "@/components/primitives/Button";
 import { useLockBodyScroll } from "@/hooks/useLockBodyScroll";
 import { EASE_SETTLE } from "@/lib/motion";
+import logoUrl from "@/assets/sagility-logo.svg";
 
 /**
  * MobileNav — full-screen overlay (<1024), accordion groups,
@@ -63,7 +65,11 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
     };
   }, [open]);
 
-  return (
+  // Render in a portal on <body> so the fixed drawer is positioned against
+  // the viewport, not the header (the header's backdrop-filter would otherwise
+  // make it the containing block for this fixed element).
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -79,8 +85,9 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
           className="fixed inset-0 z-[60] flex flex-col bg-white lg:hidden"
         >
           <div className="flex h-16 items-center justify-between px-4">
-            <span className="font-display text-h4 font-semibold text-brand-teal">
-              Sagility <span className="text-body-s font-sans uppercase tracking-[0.12em] text-brand-tealMid">ESG Report</span>
+            <span className="flex items-center gap-2">
+              <img src={logoUrl} alt="Sagility" className="h-8 w-auto" />
+              <span className="text-body-s font-sans uppercase tracking-[0.12em] text-brand-tealMid">ESG Report</span>
             </span>
             <button
               ref={closeRef}
@@ -142,6 +149,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
           </div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

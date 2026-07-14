@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowUp } from "lucide-react";
 import { FOOTER_GROUPS, SOCIAL_LINKS } from "@/data/nav";
 import { Container } from "@/components/primitives/Container";
+import logoUrl from "@/assets/sagility-logo.svg";
 
 /**
  * Footer — design-system §6.4. Dark deep-teal surface (the ESG site's
@@ -16,8 +17,8 @@ export function Footer() {
       <Container className="py-16 md:py-20">
         <div className="flex flex-col gap-12 lg:flex-row lg:justify-between">
           <div className="max-w-sm">
-            <p className="font-display text-h3 font-semibold">
-              Sagility{" "}
+            <p className="flex items-center gap-2.5 font-display">
+              <img src={logoUrl} alt="Sagility" className="h-8 w-auto" />
               <span className="text-body-s font-sans font-medium uppercase tracking-[0.12em] text-brand-mint">
                 ESG Report
               </span>
