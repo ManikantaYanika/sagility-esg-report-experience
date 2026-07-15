@@ -1,16 +1,16 @@
-// Supabase Edge Function (Deno) — production Anthropic proxy for the ESG AI Copilot.
+// Supabase Edge Function (Deno) - production Gemini proxy for the ESG AI Copilot.
 //
-// The Anthropic key lives ONLY here, read from a Supabase secret; it is never
-// sent to the browser. The browser POSTs { system, messages } and receives a
-// plain-text stream of the assistant's reply (assembled from Anthropic SSE).
+// The Gemini key lives ONLY here, read from a Supabase secret; it is never
+// sent to the browser. The browser POSTs { system, messages } and receives
+// plain text containing the assistant's reply.
 //
-//   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+//   supabase secrets set GEMINI_API_KEY=...
 //   supabase functions deploy esg-copilot
 //
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 // Model fallback priority: explicit secret first, then broadly-available models.
 const MODELS = [...new Set(
-  [Deno.env.get("ANTHROPIC_MODEL"), "claude-3-5-sonnet-latest", "claude-3-haiku-20240307"]
+  [Deno.env.get("GEMINI_MODEL"), "gemini-3.5-flash", "gemini-2.0-flash"]
     .filter((m): m is string => !!m),
 )];
 const MAX_TOKENS = 1024;
@@ -25,6 +25,15 @@ const CORS = {
 };
 
 interface WireMessage { role: "user" | "assistant"; content: string }
+interface GeminiContent { role?: "user" | "model"; parts: Array<{ text: string }> }
+interface GeminiResponse {
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> };
+    finishReason?: string;
+  }>;
+  promptFeedback?: { blockReason?: string };
+  error?: { code?: number; message?: string; status?: string };
+}
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -35,36 +44,90 @@ function json(status: number, body: unknown): Response {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-interface UpstreamResult { res: Response | null; model: string; status: number; detail: string }
+interface UpstreamResult { text: string | null; model: string; status: number; detail: string }
 
-async function callAnthropic(apiKey: string, system: string, messages: WireMessage[]): Promise<UpstreamResult> {
-  let last: UpstreamResult = { res: null, model: "", status: 0, detail: "" };
+function geminiUrl(model: string, apiKey: string): string {
+  const modelPath = model.startsWith("models/") || model.startsWith("tunedModels/")
+    ? model
+    : `models/${model}`;
+  const url = new URL(`${GEMINI_API_BASE}/${modelPath}:generateContent`);
+  url.searchParams.set("key", apiKey);
+  return url.toString();
+}
+
+function toGeminiContents(messages: WireMessage[]): GeminiContent[] {
+  return messages
+    .filter((message) =>
+      (message.role === "user" || message.role === "assistant") &&
+      typeof message.content === "string" &&
+      message.content.trim().length > 0
+    )
+    .map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.content }],
+    }));
+}
+
+function extractGeminiText(body: GeminiResponse): string {
+  return body.candidates
+    ?.flatMap((candidate) => candidate.content?.parts ?? [])
+    .map((part) => part.text ?? "")
+    .join("") ?? "";
+}
+
+function geminiResponseDetail(body: GeminiResponse): string {
+  if (body.error?.message) return body.error.message;
+  if (body.promptFeedback?.blockReason) return `prompt_blocked:${body.promptFeedback.blockReason}`;
+  const finishReason = body.candidates?.map((candidate) => candidate.finishReason).filter(Boolean).join(",");
+  return finishReason ? `finish_reason:${finishReason}` : "empty_response";
+}
+
+async function callGemini(apiKey: string, system: string, messages: WireMessage[]): Promise<UpstreamResult> {
+  const contents = toGeminiContents(messages);
+  let last: UpstreamResult = { text: null, model: "", status: 0, detail: "" };
+
   for (const model of MODELS) {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
       try {
-        const res = await fetch(ANTHROPIC_URL, {
+        const res = await fetch(geminiUrl(model, apiKey), {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-api-key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system, messages, stream: true }),
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents,
+            generationConfig: { maxOutputTokens: MAX_TOKENS },
+          }),
           signal: controller.signal,
         });
         clearTimeout(timer);
-        if (res.ok) return { res, model, status: 200, detail: "" };
-        const detail = (await res.text().catch(() => "")).slice(0, 600);
-        last = { res: null, model, status: res.status, detail };
-        console.warn(`[esg-copilot] model ${model} -> ${res.status} ${detail}`);
-        if (res.status === 401) return last;                                   // invalid key: stop
+
+        const raw = await res.text().catch(() => "");
+        let parsed: GeminiResponse = {};
+        try {
+          parsed = raw ? JSON.parse(raw) : {};
+        } catch {
+          parsed = {};
+        }
+
+        if (res.ok) {
+          const text = extractGeminiText(parsed).trim();
+          if (text) return { text, model, status: 200, detail: "" };
+          last = { text: null, model, status: 502, detail: geminiResponseDetail(parsed) };
+          console.error(`[esg-copilot] Gemini empty response (model ${model}):`, last.detail);
+          break;
+        }
+
+        const detail = geminiResponseDetail(parsed) || raw;
+        last = { text: null, model, status: res.status, detail };
+        console.error(`[esg-copilot] Gemini Error (model ${model}, status ${res.status}):`, detail);
+        if (res.status === 401 || res.status === 403) return last; // invalid key/permission: stop
         if (res.status === 429 || res.status >= 500) { await sleep(400 * (attempt + 1)); continue; } // transient: retry
-        break;                                                                 // 400/403/404: try next model
+        break; // 400/404: try next model
       } catch (e) {
         clearTimeout(timer);
-        last = { res: null, model, status: 0, detail: (e as Error).name };
+        last = { text: null, model, status: 0, detail: (e as Error).name };
         console.warn(`[esg-copilot] model ${model} fetch error/timeout: ${(e as Error).name}`);
         await sleep(400 * (attempt + 1));
       }
@@ -78,9 +141,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json(405, { error: "method_not_allowed" });
 
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey) {
-    console.error("[esg-copilot] ANTHROPIC_API_KEY secret is not set");
+    console.error("[esg-copilot] GEMINI_API_KEY secret is not set");
     return json(500, { error: "server_misconfigured" });
   }
 
@@ -93,58 +156,22 @@ Deno.serve(async (req: Request) => {
   } catch {
     return json(400, { error: "invalid_request" });
   }
-  if (messages.length === 0) return json(400, { error: "invalid_request" });
+  if (messages.length === 0 || toGeminiContents(messages).length === 0) {
+    return json(400, { error: "invalid_request" });
+  }
   console.log(`[esg-copilot] request: ${messages.length} msgs, models [${MODELS.join(", ")}]`);
 
-  const upstream = await callAnthropic(apiKey, system, messages);
-  if (!upstream.res || !upstream.res.body) {
+  const upstream = await callGemini(apiKey, system, messages);
+  if (upstream.text === null) {
     const status = upstream.status === 401 || upstream.status === 403 ? 401
       : upstream.status === 429 ? 429
       : 502;
     console.error(`[esg-copilot] all models failed: ${upstream.status} ${upstream.detail} (${Date.now() - started}ms)`);
     return json(status, { error: "upstream_error", upstreamStatus: upstream.status, detail: upstream.detail, triedModels: MODELS });
   }
-  console.log(`[esg-copilot] using model ${upstream.model} (${Date.now() - started}ms to first byte)`);
+  console.log(`[esg-copilot] using model ${upstream.model}; returned ${upstream.text.length} chars in ${Date.now() - started}ms`);
 
-  // Transform Anthropic SSE -> plain-text token stream.
-  const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = upstream.res!.body!.getReader();
-      const decoder = new TextDecoder();
-      const encoder = new TextEncoder();
-      let buffer = "";
-      let emitted = 0;
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            const t = line.trim();
-            if (!t.startsWith("data:")) continue;
-            const payload = t.slice(5).trim();
-            if (!payload || payload === "[DONE]") continue;
-            try {
-              const evt = JSON.parse(payload);
-              if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
-                emitted += evt.delta.text.length;
-                controller.enqueue(encoder.encode(evt.delta.text));
-              }
-            } catch { /* ignore keep-alives / non-JSON */ }
-          }
-        }
-        console.log(`[esg-copilot] streamed ${emitted} chars in ${Date.now() - started}ms`);
-      } catch (e) {
-        console.error("[esg-copilot] stream error", (e as Error).name);
-      } finally {
-        controller.close();
-      }
-    },
-  });
-
-  return new Response(stream, {
+  return new Response(upstream.text, {
     headers: { ...CORS, "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
   });
 });

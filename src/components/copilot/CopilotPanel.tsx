@@ -106,8 +106,13 @@ export function CopilotPanel({
   }, [visible.length, showTyping, status, messages]);
 
   function submit() {
+    console.log("[DEBUG] CopilotPanel submit()");
     const text = draft.trim();
-    if (!text || streaming) return;
+    if (!text || streaming) {
+      console.log("[DEBUG] CopilotPanel submit() stopped", { hasText: text.length > 0, streaming });
+      return;
+    }
+    console.log("[DEBUG] CopilotPanel onSend()", { textLength: text.length });
     onSend(text);
     setDraft("");
   }

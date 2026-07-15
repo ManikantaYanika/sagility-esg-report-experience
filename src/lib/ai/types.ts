@@ -1,7 +1,7 @@
 /**
  * ESG AI Copilot — shared types + error model (Phase 2).
- * The Anthropic API key never appears in this (frontend) layer; requests go to
- * a server proxy that holds the key. See src/lib/ai/anthropic.ts.
+ * Provider API keys never appear in this (frontend) layer; requests go to
+ * a server proxy that holds the key.
  */
 
 export type ChatRole = "user" | "assistant";

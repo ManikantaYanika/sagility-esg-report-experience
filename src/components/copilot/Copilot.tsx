@@ -18,9 +18,15 @@ export function Copilot() {
   const launcherRef = useRef<HTMLButtonElement>(null);
   const chat = useCopilot();
 
-  const openPanel = useCallback(() => setOpen(true), []);
+  console.log("[DEBUG] Copilot()", { open, configured: chat.configured, status: chat.status });
+
+  const openPanel = useCallback(() => {
+    console.log("[DEBUG] Copilot openPanel()");
+    setOpen(true);
+  }, []);
   const minimize = useCallback(() => setOpen(false), []); // preserves the conversation
   const close = useCallback(() => {
+    console.log("[DEBUG] Copilot close()");
     setOpen(false);
     chat.clear(); // closing ends the session and resets to a fresh welcome
   }, [chat]);

@@ -1,9 +1,12 @@
 /**
- * Anthropic transport (frontend).
- * This layer NEVER holds the API key. It streams from a server proxy
+ * Copilot transport (frontend compatibility shim).
+ * This layer NEVER holds a provider API key. It streams from a server proxy
  * (a Supabase Edge Function) whose URL is a non-secret env value
- * (VITE_COPILOT_ENDPOINT). The proxy owns ANTHROPIC_API_KEY and calls
- * the Anthropic Messages API server-side.
+ * (VITE_COPILOT_ENDPOINT). The proxy owns GEMINI_API_KEY and calls
+ * Gemini server-side.
+ *
+ * The streamAnthropic export name is retained so the existing chat flow and
+ * frontend imports do not need to change.
  */
 import { copilotError, type ChatRequestBody, type StreamHandlers } from "./types";
 
@@ -15,7 +18,9 @@ const REQUEST_TIMEOUT_MS = 45_000;
 
 /** True when a proxy endpoint is configured. */
 export function isConfigured(): boolean {
-  return typeof ENDPOINT === "string" && ENDPOINT.trim().length > 0;
+  const configured = typeof ENDPOINT === "string" && ENDPOINT.trim().length > 0;
+  console.log("[DEBUG] isConfigured()", { configured, endpoint: ENDPOINT ?? null });
+  return configured;
 }
 
 function mapStatus(status: number) {
@@ -33,7 +38,15 @@ export async function streamAnthropic(
   body: ChatRequestBody,
   { onToken, signal }: StreamHandlers,
 ): Promise<void> {
-  if (!ENDPOINT) throw copilotError("unconfigured");
+  console.log("[DEBUG] copilot transport()", {
+    configured: Boolean(ENDPOINT),
+    endpoint: ENDPOINT ?? null,
+    hasAnonKey: Boolean(ANON),
+  });
+  if (!ENDPOINT) {
+    console.log("[DEBUG] copilot transport stopped: missing endpoint");
+    throw copilotError("unconfigured");
+  }
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -44,6 +57,16 @@ export async function streamAnthropic(
 
   let response: Response;
   try {
+    const headers = {
+      "content-type": "application/json",
+      ...(ANON ? { authorization: "Bearer [redacted]", apikey: "[redacted]" } : {}),
+    };
+    console.log("[DEBUG] before fetch()", {
+      url: ENDPOINT,
+      method: "POST",
+      headers,
+      body,
+    });
     response = await fetch(ENDPOINT, {
       method: "POST",
       headers: {
@@ -53,13 +76,29 @@ export async function streamAnthropic(
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-  } catch {
+    console.log("[DEBUG] after fetch()", response.status, {
+      ok: response.ok,
+      statusText: response.statusText,
+      contentType: response.headers.get("content-type"),
+    });
+  } catch (e) {
+    console.log("[DEBUG] fetch() threw", {
+      name: (e as Error).name,
+      message: (e as Error).message,
+      userAborted: userAborted(),
+    });
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", onExternalAbort);
     throw copilotError(userAborted() ? "aborted" : "network");
   }
 
   if (!response.ok) {
+    const responseText = await response.clone().text().catch(() => "");
+    console.log("[DEBUG] fetch() non-ok response", {
+      status: response.status,
+      statusText: response.statusText,
+      body: responseText,
+    });
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", onExternalAbort);
     throw mapStatus(response.status);
@@ -81,15 +120,22 @@ export async function streamAnthropic(
       const chunk = decoder.decode(value, { stream: true });
       if (chunk) {
         received += chunk.length;
+        console.log("[DEBUG] copilot transport token", { chunkLength: chunk.length, received });
         onToken(chunk);
       }
     }
-  } catch {
+  } catch (e) {
+    console.log("[DEBUG] copilot transport read threw", {
+      name: (e as Error).name,
+      message: (e as Error).message,
+      userAborted: userAborted(),
+    });
     throw copilotError(userAborted() ? "aborted" : "network");
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", onExternalAbort);
   }
 
+  console.log("[DEBUG] copilot transport completed", { received, userAborted: userAborted() });
   if (received === 0 && !userAborted()) throw copilotError("empty");
 }

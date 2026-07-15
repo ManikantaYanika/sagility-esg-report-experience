@@ -33,6 +33,7 @@ export function useCopilot(): UseCopilot {
   const [followups, setFollowups] = useState<string[]>([]);
 
   const configured = isConfigured();
+  console.log("[DEBUG] useCopilot()", { configured, status, messageCount: messages.length });
   const abortRef = useRef<AbortController | null>(null);
   // Latest messages, readable synchronously by send/retry without stale closures.
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -43,7 +44,9 @@ export function useCopilot(): UseCopilot {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const run = useCallback((history: ChatMessage[]) => {
+    console.log("[DEBUG] run()", { configured, historyLength: history.length });
     if (!configured) {
+      console.log("[DEBUG] run() stopped: not configured");
       setMessages(history);
       setError(copilotError("unconfigured"));
       setStatus("error");
@@ -69,6 +72,7 @@ export function useCopilot(): UseCopilot {
         ),
     })
       .then(() => {
+        console.log("[DEBUG] streamChat() resolved");
         setMessages((prev) =>
           prev.map((m) => (m.id === assistantId ? { ...m, status: "complete" } : m)),
         );
@@ -78,6 +82,7 @@ export function useCopilot(): UseCopilot {
       })
       .catch((e: unknown) => {
         const err = (e as CopilotError)?.kind ? (e as CopilotError) : copilotError("unknown");
+        console.log("[DEBUG] streamChat() rejected", err);
         if (err.kind === "aborted") {
           // user pressed stop — keep any partial text, drop empty bubble
           setMessages((prev) =>
@@ -94,18 +99,24 @@ export function useCopilot(): UseCopilot {
         setStatus("error");
       })
       .finally(() => {
+        console.log("[DEBUG] run() finally");
         abortRef.current = null;
       });
   }, [configured]);
 
   const send = useCallback(
     (text: string) => {
+      console.log("[DEBUG] send()", { rawLength: text.length, status });
       const content = text.trim();
-      if (!content || status === "streaming") return;
+      if (!content || status === "streaming") {
+        console.log("[DEBUG] send() stopped", { hasContent: content.length > 0, status });
+        return;
+      }
       const history = [
         ...messagesRef.current,
         { id: makeId(), role: "user" as const, content, at: Date.now() },
       ];
+      console.log("[DEBUG] send() calling run()", { historyLength: history.length });
       setMessages(history);
       run(history);
     },
